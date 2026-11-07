@@ -776,11 +776,15 @@
         <input id="notify-email" name="email" type="email" required placeholder="you@example.com"
                class="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 transition-colors" />
         <p id="notify-error" class="mt-2 hidden text-xs font-medium text-red-500">Please enter a valid email address.</p>
-        <button type="submit"
-                class="mt-3 w-full rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/25 hover:bg-brand-700 hover:-translate-y-0.5 transition-all duration-200">
+        <p id="notify-api-error" class="mt-2 hidden text-xs font-medium text-red-500">Something went wrong sending your request. Please try again in a moment.</p>
+        <button type="submit" id="notify-submit"
+                class="mt-3 w-full rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/25 hover:bg-brand-700 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0">
           Notify Me at Launch →
         </button>
         <p class="mt-3 text-xs text-slate-400">No spam — exactly one email at launch. The 14-day money-back guarantee will apply.</p>
+
+        <!-- Honeypot: hidden field that only bots fill in (spam protection) -->
+        <input type="checkbox" name="botcheck" class="hidden" style="display:none;" tabindex="-1" aria-hidden="true">
       </form>
 
       <!-- Success state -->
@@ -830,14 +834,21 @@
       });
     })();
 
-    // ---- Checkout / launch-notify modal ----
+    // ---- Checkout / launch-notify modal + Web3Forms email delivery ----
     (function () {
+      // IMPORTANT: paste your free Web3Forms access key here.
+      // Get it at https://web3forms.com — sign up with YOUR email and the key
+      // is created instantly; all form submissions are then delivered to that inbox.
+      const WEB3FORMS_ACCESS_KEY = 'a541b8d8-3286-4e87-9888-9e418ca537ad';
+
       const modal = document.getElementById('checkout-modal');
       const backdrop = document.getElementById('checkout-backdrop');
       const closeBtn = document.getElementById('checkout-close');
       const form = document.getElementById('notify-form');
       const emailInput = document.getElementById('notify-email');
       const errorMsg = document.getElementById('notify-error');
+      const apiError = document.getElementById('notify-api-error');
+      const submitBtn = document.getElementById('notify-submit');
       const success = document.getElementById('notify-success');
       const savedEmail = document.getElementById('notify-saved-email');
       const doneBtn = document.getElementById('notify-done');
@@ -847,7 +858,10 @@
         form.classList.remove('hidden');
         success.classList.add('hidden');
         errorMsg.classList.add('hidden');
+        apiError.classList.add('hidden');
         emailInput.value = '';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Notify Me at Launch →';
       }
 
       function openModal() {
@@ -876,8 +890,11 @@
         if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
       });
 
-      form.addEventListener('submit', function (e) {
+      form.addEventListener('submit', async function (e) {
         e.preventDefault();
+        errorMsg.classList.add('hidden');
+        apiError.classList.add('hidden');
+
         const email = emailInput.value.trim();
         const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
         if (!valid) {
@@ -885,15 +902,44 @@
           emailInput.focus();
           return;
         }
-        // Store locally until a real backend / email service is connected.
+
+        // Send the signup to your inbox via Web3Forms (free, no backend needed).
+        const originalLabel = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Sending…';
+
         try {
-          const list = JSON.parse(localStorage.getItem('lifeos_waitlist') || '[]');
-          if (!list.includes(email)) list.push(email);
-          localStorage.setItem('lifeos_waitlist', JSON.stringify(list));
-        } catch (err) { /* storage unavailable — still show success */ }
-        savedEmail.textContent = email;
-        form.classList.add('hidden');
-        success.classList.remove('hidden');
+          const res = await fetch('https://api.web3forms.com/submit', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              access_key: WEB3FORMS_ACCESS_KEY,
+              subject: 'New Life OS waitlist signup',
+              from_name: 'Notionary Landing Page',
+              email: email,
+              message: 'New waitlist signup from the Life OS landing page: ' + email
+            })
+          });
+          const data = await res.json();
+
+          if (data.success) {
+            savedEmail.textContent = email;
+            form.classList.add('hidden');
+            success.classList.remove('hidden');
+          } else {
+            // e.g. invalid / missing access key
+            apiError.classList.remove('hidden');
+          }
+        } catch (err) {
+          // network failure etc.
+          apiError.classList.remove('hidden');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalLabel;
+        }
       });
     })();
   </script>
