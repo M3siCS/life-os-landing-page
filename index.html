@@ -783,7 +783,6 @@
         </button>
         <p class="mt-3 text-xs text-slate-400">No spam — exactly one email at launch. The 14-day money-back guarantee will apply.</p>
 
-        <!-- Honeypot: hidden field that only bots fill in (spam protection) -->
         <input type="checkbox" name="botcheck" class="hidden" style="display:none;" tabindex="-1" aria-hidden="true">
       </form>
 
@@ -834,11 +833,9 @@
       });
     })();
 
-    // ---- Checkout / launch-notify modal + Web3Forms email delivery ----
+    // ---- Checkout / launch-notify modal ----
     (function () {
-      // IMPORTANT: paste your free Web3Forms access key here.
-      // Get it at https://web3forms.com — sign up with YOUR email and the key
-      // is created instantly; all form submissions are then delivered to that inbox.
+      // https://web3forms.com
       const WEB3FORMS_ACCESS_KEY = 'a541b8d8-3286-4e87-9888-9e418ca537ad';
 
       const modal = document.getElementById('checkout-modal');
@@ -895,15 +892,23 @@
         errorMsg.classList.add('hidden');
         apiError.classList.add('hidden');
 
-        const email = emailInput.value.trim();
-        const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        const email = emailInput.value.trim()
+          .replace(/[\u00AD\u180E\u2060-\u2064\u200B-\u200F\u202A-\u202E\uFEFF]/g, ''); // strip invisible chars
+        const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254; // RFC 5321 max
         if (!valid) {
           errorMsg.classList.remove('hidden');
           emailInput.focus();
           return;
         }
 
-        // Send the signup to your inbox via Web3Forms (free, no backend needed).
+        // honeypot: bots get a fake success, API never called
+        if (form.querySelector('input[name="botcheck"]').checked) {
+          savedEmail.textContent = email;
+          form.classList.add('hidden');
+          success.classList.remove('hidden');
+          return;
+        }
+
         const originalLabel = submitBtn.textContent;
         submitBtn.disabled = true;
         submitBtn.textContent = 'Sending…';
@@ -930,11 +935,9 @@
             form.classList.add('hidden');
             success.classList.remove('hidden');
           } else {
-            // e.g. invalid / missing access key
             apiError.classList.remove('hidden');
           }
         } catch (err) {
-          // network failure etc.
           apiError.classList.remove('hidden');
         } finally {
           submitBtn.disabled = false;
